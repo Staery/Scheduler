@@ -4,9 +4,111 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Scheduler"
+        xmlns:notsolocal="clr-namespace:Scheduler.Components"
+        xmlns:vm="clr-namespace:Scheduler.ViewModels"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
-        
+        d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
+        Title="Scheduler Widget" Height="450" MinWidth="910"
+        Background="#474747">
+
+    <Grid Background="#A8B2BF" Margin="10">
+        <Grid Panel.ZIndex="50" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <TextBlock x:Name="StatusTextBlock" FontSize="40" FontWeight="Bold" Text="Generating..." 
+               HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Path=IsGenerating}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
+        </Grid>
+        <Grid Height="25" VerticalAlignment="Top">
+            <TextBlock Margin="4 0 0 0" VerticalAlignment="Center" Grid.Row="0" Text="{Binding Date}" FontWeight="Bold"></TextBlock>
+        </Grid>
+
+        <Grid Panel.ZIndex="30" Margin="0 50 0 0" VerticalAlignment="Top" Height="25" Background="#BDC1C7">
+            <DockPanel Margin="0 0 30 0" Panel.ZIndex="20">
+                <StackPanel DockPanel.Dock="Left"   VerticalAlignment="Center" Orientation="Horizontal" >
+                    <Separator Style="{StaticResource narrowSeparator}"></Separator>
+                    <Rectangle Style="{StaticResource smallBlackRectangle}" Fill="Orange"></Rectangle>
+                    <Separator Style="{StaticResource narrowSeparator}"></Separator>
+                    <TextBlock Text="{Binding StringFormat={}{0} Pending,Path=PendingAmount}" FontWeight="Bold" x:Name="txtPending"></TextBlock>
+
+                    <Separator Style="{StaticResource wideSeparator}"></Separator>
+                    <Rectangle Style="{StaticResource smallBlackRectangle}" Fill="Red">
+                    </Rectangle>
+                    <Separator Style="{StaticResource narrowSeparator}"></Separator>
+                    <TextBlock Text="{Binding StringFormat={}{0} Jeopardy,Path=JeopardyAmount}" FontWeight="Bold" x:Name="txtJeopardy"></TextBlock>
+
+                    <Separator Style="{StaticResource wideSeparator}"></Separator>
+                    <Rectangle Style="{StaticResource smallBlackRectangle}">
+                        <Rectangle.Fill>
+                            <ImageBrush ImageSource="pack://application:,,,/Resources/Images/Completed.png" />
+                        </Rectangle.Fill>
+                    </Rectangle>
+                    <Separator Style="{StaticResource narrowSeparator}"></Separator>
+                    <TextBlock Text="{Binding StringFormat={}{0} Completed,Path=CompletedAmount}" FontWeight="Bold" x:Name="txtCompleted"></TextBlock>
+                </StackPanel>
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Right" DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Border BorderThickness="2 0 0 0" BorderBrush="Black"></Border>
+                    <Separator Style="{StaticResource narrowSeparator}"/>
+                    <TextBlock VerticalAlignment="Center" FontWeight="Bold">Layers:</TextBlock>
+                    <Separator Style="{StaticResource narrowSeparator}"/>
+                    <TextBox Text="{Binding LayersAmount}" VerticalAlignment="Center" MinWidth="50" FontWeight="Bold"></TextBox>
+                    <Separator Style="{StaticResource narrowSeparator}"/>
+
+                    <TextBlock VerticalAlignment="Center" FontWeight="Bold">Events: ~</TextBlock>
+                    <TextBox Text="{Binding EventsAmount}" VerticalAlignment="Center" MinWidth="50" FontWeight="Bold"></TextBox>
+                    <Separator Style="{StaticResource narrowSeparator}"/>
+
+                    <Button x:Name="btnGenerateSchedule" IsEnabled="True">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="4"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                            </Style>
+                        </Button.Resources>
+                        <Button.Content>
+                            <Image Source="pack://application:,,,/Resources/Images/Generate_Schedule.png"></Image>
+                        </Button.Content>
+                    </Button>
+                </StackPanel>
+            </DockPanel>
+        </Grid>
+
+        <ScrollViewer   x:Name="scrollViewerOuter"  HorizontalScrollBarVisibility="Visible" VerticalScrollBarVisibility="Disabled">
+            <Grid MinWidth="2000"   Name="mainGrid">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="25"></RowDefinition>
+                    <RowDefinition Height="25"></RowDefinition>
+                    <RowDefinition Height="25"></RowDefinition>
+                    <RowDefinition></RowDefinition>
+                </Grid.RowDefinitions>
+                <Rectangle Grid.RowSpan="5" Panel.ZIndex="10" x:Name="rectCurrentTime" 
+                          Style="{StaticResource blackRectangle}" HorizontalAlignment="Left" Width="5" Fill="Yellow"/>
+
+                <Grid  Name="gridTimeStamps" Grid.Row="1"  ></Grid>
+
+                <Grid  Name="gridTimeStampsMicroSteps" Grid.Row="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition></RowDefinition>
+                        <RowDefinition></RowDefinition>
+                        <RowDefinition></RowDefinition>
+                    </Grid.RowDefinitions>
+                </Grid>
+
+                <ScrollViewer Name="ScrollViewer" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Hidden" Grid.Row="3">
+                    <Grid Margin="0 0 15 15" x:Name="gridTimeLines"></Grid>
+                </ScrollViewer>
+            </Grid>
+        </ScrollViewer>
+
+        <notsolocal:BindableScrollBar Panel.ZIndex="60" Width="15" Margin="0 50 0 15" HorizontalAlignment="Right" BoundScrollViewer ="{Binding ElementName=ScrollViewer}"  Orientation="Vertical" />
+
     </Grid>
 </Window>

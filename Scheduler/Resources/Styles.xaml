@@ -1,0 +1,37 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Style TargetType="Separator" x:Key="transparentSeparator">
+        <Setter Property="Background" Value="Transparent"/>
+    </Style>
+    <Style TargetType="Separator" x:Key="narrowSeparator" BasedOn="{StaticResource transparentSeparator}">
+        <Setter Property="Width" Value="8"/>
+    </Style>
+    <Style TargetType="Rectangle" x:Key="brokenLineRectangle">
+        <Setter Property="Stroke" Value="Black"/>
+        <Setter Property="StrokeThickness" Value="1"/>
+        <Setter Property="Opacity" Value="0.8"/>
+        <Setter Property="StrokeDashArray" Value="2,2"/>
+    </Style>
+    <Style TargetType="Rectangle" x:Key="blackRectangle">
+        <Setter Property="Stroke" Value="Black"/>
+        <Setter Property="StrokeThickness" Value="2"/>
+        <Setter Property="Opacity" Value="0.8"/>
+        <Setter Property="Visibility" Value="Visible"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsGenerating}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+    </Style>
+    <Style TargetType="Rectangle" x:Key="smallBlackRectangle" BasedOn="{StaticResource brokenLineRectangle}">
+       <Setter Property="Width" Value="15"/>
+       <Setter Property="Height" Value="15"/>
+   </Style>
+   <Style TargetType="Separator" x:Key="wideSeparator" BasedOn="{StaticResource transparentSeparator}">
+       <Setter Property="Width" Value="30"/>
+   </Style>
+    <Style TargetType="Border" x:Key="blackBorder">
+        <Setter Property="BorderBrush" Value="Black"/>
+        <Setter Property="BorderThickness" Value="2, 0, 0, 2"/>
+    </Style>
+</ResourceDictionary>
