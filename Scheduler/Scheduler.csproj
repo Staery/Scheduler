@@ -65,6 +65,7 @@
     <Compile Include="Components\CustomDateFormatter.cs" />
     <Compile Include="Components\IDateFormatter.cs" />
     <Compile Include="Components\MessageEventArgs.cs" />
+    <Compile Include="Components\ObjectPool.cs" />
     <Compile Include="Components\ScheduleEvent.cs" />
     <Compile Include="ViewModels\MainViewModel.cs" />
     <Page Include="MainWindow.xaml">

@@ -33,7 +33,6 @@ namespace Scheduler.ViewModels
         public int RulerStep => TimeLineEnd / (TimeLineEnd / RulerStepValue);
         public int GridRowDefinitionsCount { get; set; }
 
-        private DateTime _lastFrameTime = DateTime.Now;
         public AvlTree<double, ScheduleEvent> MainTree { get; set; }
 
         // Constructor injecting a DateFormatter

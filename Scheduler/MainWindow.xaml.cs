@@ -8,20 +8,39 @@ using System.Windows.Shapes;
 using System.Windows.Threading;
 using System.Windows;
 using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using static System.Net.Mime.MediaTypeNames;
+using System.Linq;
+using System.Xml.Linq;
 
 namespace Scheduler
 {
     public partial class MainWindow : Window
     {
+        private ObjectPool<Grid> _gridPool = new ObjectPool<Grid>();
+        private ObjectPool<Rectangle> _rectanglePool = new ObjectPool<Rectangle>();
+        private ObjectPool<TextBlock> _textBlocPool = new ObjectPool<TextBlock>();
+        //List active elements
+        private List<FrameworkElement> _elements = new List<FrameworkElement>();
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool AllocConsole();
+        private Stopwatch _stopwatch = new Stopwatch();
         private const int TimeLineRowHeight = 30; // Constant for defining the height of each timeline row
         private readonly MainViewModel _viewModel; // ViewModel instance
         private double _windowWidth { get; set; } // Window width
         private double _windowHeight { get; set; } // Window height
 
+        DispatcherTimer timer = null;
+
         // Constructor
         public MainWindow()
         {
             InitializeComponent();
+
+            AllocConsole();
 
             _viewModel = new MainViewModel(new CustomDateFormatter()); // Initializing ViewModel
             DataContext = _viewModel;
@@ -50,22 +69,31 @@ namespace Scheduler
             mainGrid.Width = _viewModel.TimeLineEnd * 30; // Setting width of main grid based on timeline end
 
             SetupTimeLines(); // Setting up timeline
-
-            DispatcherTimer timer = new DispatcherTimer();
-            timer.Tick += Timer_Tick;
-            timer.Interval = new TimeSpan(0, 0, 0, 0, 10);
-            timer.Start();
-
+            if (timer == null)
+            {
+                timer = new DispatcherTimer();
+                timer.Tick += Timer_Tick;
+                timer.Interval = new TimeSpan(0, 0, 0, 0, 10);
+                timer.Start();
+            }
+    
             rectCurrentTime.Margin = new Thickness(); // Resetting margin of current time rectangle
         }
 
         // Event handler for scroll change in outer scroll viewer
         private void ScrollViewerOuter_ScrollChanged(object sender, ScrollChangedEventArgs e)
         {
+            _stopwatch.Restart();
             if (!_viewModel.IsGenerating)
             {
                 DrawVisibleEvents(); // Draw visible events on scroll change
             }
+            _stopwatch.Stop();
+
+            TimeSpan deltaTime = _stopwatch.Elapsed;
+
+            double fps = 1.0 / deltaTime.TotalSeconds;
+            Console.WriteLine($"FPS: {fps} {deltaTime.TotalMilliseconds}");
         }
 
         // Event handler for clicking generate schedule button
@@ -82,62 +110,113 @@ namespace Scheduler
         // Method to draw visible events
         private void DrawVisibleEvents()
         {
-            DrawRuler(); // Draw ruler
+
+            ClearUnusedEvents();  // Clear or hide events that are not visible
+
+            DrawRuler();
             double containerWidth = mainGrid.ActualWidth;
-            List<ScheduleEvent> events = _viewModel.GetVisibleEvents(containerWidth, scrollViewerOuter.HorizontalOffset,
-                scrollViewerOuter.HorizontalOffset + _windowWidth);
+
+            var events = _viewModel.GetVisibleEvents(containerWidth, scrollViewerOuter.HorizontalOffset, scrollViewerOuter.HorizontalOffset + _windowWidth);
 
             foreach (var timeLineEvent in events)
             {
-                DrawEvent(timeLineEvent); // Draw each visible event
+                DrawEvent(timeLineEvent); // Reuse or create new visual representations for events
             }
 
             void DrawEvent(ScheduleEvent timeLineEvent)
             {
-                // Draw event rectangle
-                Grid eventGrid = new Grid
-                {
-                    HorizontalAlignment = HorizontalAlignment.Left,
-                    Width = timeLineEvent.DurationRatio * containerWidth,
-                    Margin = new Thickness(timeLineEvent.StartTimeRatio * containerWidth, 2, 0, 2)
-                };
-                gridTimeLines.Children.Add(eventGrid);
+                Grid eventGrid = _gridPool.Get();
+                Rectangle rectangle = _rectanglePool.Get();
+                TextBlock textBlock = _textBlocPool.Get();
 
-                Rectangle rectangle = new Rectangle
+                _elements.Add(eventGrid);
+                _elements.Add(rectangle);
+                _elements.Add(textBlock);
+
+                ConfigureEventGrid(eventGrid, timeLineEvent, containerWidth);
+                ConfigureRectangle(rectangle, timeLineEvent);
+                ConfigureTextBlock(textBlock, timeLineEvent);
+
+
+                if (!gridTimeLines.Children.Contains(eventGrid))
                 {
-                    StrokeThickness = 3,
-                    Stroke = Brushes.Black,
-                    Opacity = 0.8
-                };
-                switch (timeLineEvent.Status)
-                {
-                    case 1:
-                        rectangle.Fill = Brushes.Orange;
-                        break;
-                    case 2:
-                        rectangle.Fill = Brushes.Red;
-                        break;
-                    case 3:
-                        rectangle.Fill = Brushes.LightGreen;
-                        break;
-                    default:
-                        rectangle.Fill = Brushes.Gray;
-                        break;
+                    gridTimeLines.Children.Add(eventGrid);
                 }
+
                 eventGrid.Children.Add(rectangle);
 
-                TextBlock textBlock = new TextBlock
-                {
-                    Text = "Generic Name",
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(5, 0, 0, 0)
-                };
-
                 eventGrid.Children.Add(textBlock);
-                Panel.SetZIndex(eventGrid, 10);
-                Grid.SetRow(eventGrid, timeLineEvent.RenderLayer);
             }
         }
+
+        private void ConfigureEventGrid(Grid grid, ScheduleEvent timeLineEvent, double width)
+        {
+            grid.HorizontalAlignment = HorizontalAlignment.Left;
+            grid.Width = timeLineEvent.DurationRatio * width;
+            grid.Margin = new Thickness(timeLineEvent.StartTimeRatio * width, 2, 0, 2);
+            Grid.SetRow(grid, timeLineEvent.RenderLayer);
+            Panel.SetZIndex(grid, 10);
+        }
+
+        private void ConfigureRectangle(Rectangle rectangle, ScheduleEvent timeLineEvent)
+        {
+            rectangle.StrokeThickness = 3;
+            rectangle.Stroke = Brushes.Black;
+            rectangle.Opacity = 0.8;
+            rectangle.Fill = GetBrushByStatus(timeLineEvent.Status);
+        }
+
+        private void ConfigureTextBlock(TextBlock textBlock, ScheduleEvent timeLineEvent)
+        {
+            textBlock.Text = "Generic Name";
+            textBlock.VerticalAlignment = VerticalAlignment.Center;
+            textBlock.Margin = new Thickness(5, 0, 0, 0);
+        }
+
+        private Brush GetBrushByStatus(int status)
+        {
+            // Replace with actual status-to-color logic
+            switch (status)
+            {
+                case 1: return Brushes.Orange;
+                case 2: return Brushes.Red;
+                case 3: return Brushes.LightGreen;
+                default: return Brushes.Gray;
+            }
+        }
+
+        private void ClearUnusedEvents()
+        {
+            void DisconectFromParent(FrameworkElement frameworkElement)
+            {
+                if (frameworkElement.Parent is Panel panel)
+                {
+                    panel.Children.Remove(frameworkElement);
+                }
+            }
+            foreach (var element in _elements)
+            {
+                DisconectFromParent(element);
+                if (element is Grid grid)
+                {
+                    _gridPool.Release(grid);
+                }
+
+                else if (element is TextBlock textBlock)
+                {
+                    _textBlocPool.Release(textBlock);
+                }
+                else if (element is Rectangle rectangle)
+                {
+                    _rectanglePool.Release(rectangle);
+                }
+                else { throw new InvalidOperationException(); }
+            }
+
+            _elements.Clear();
+        }
+
+
 
         // Method to reset graphic elements
         private void ResetGraphic()
