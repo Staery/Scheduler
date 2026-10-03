@@ -1,33 +1,37 @@
+using Scheduler.Core.Collections;
+
 namespace Scheduler.Core.Models;
 
 /// <summary>
-/// An immutable set of events split into layers (timeline rows). Events of a layer never overlap and are sorted by
-/// start, so the events in any time window are found with a binary search: O(log n + k) per layer.
+/// An immutable set of events split into layers (timeline rows). Each layer is indexed by an
+/// <see cref="AvlIntervalTree{T}"/>, so the events inside any time window are found in O(log n + k),
+/// even when events overlap or share a start time.
 /// </summary>
 public sealed class Schedule
 {
+    private readonly AvlIntervalTree<ScheduleEvent>[] _trees;
     private readonly ScheduleEvent[][] _layers;
 
     public Schedule(IEnumerable<IEnumerable<ScheduleEvent>> layers, DateTime origin)
     {
         ArgumentNullException.ThrowIfNull(layers);
 
-        _layers = layers.Select(layer => layer.OrderBy(e => e.Start).ToArray()).ToArray();
+        _trees = layers.Select(layer =>
+        {
+            var tree = new AvlIntervalTree<ScheduleEvent>();
+            foreach (var scheduleEvent in layer)
+            {
+                tree.Insert(scheduleEvent.Start, scheduleEvent.End, scheduleEvent);
+            }
+
+            return tree;
+        }).ToArray();
+
+        _layers = _trees.Select(tree => tree.InOrder().ToArray()).ToArray();
         Origin = origin;
 
-        foreach (var layer in _layers)
-        {
-            for (var i = 1; i < layer.Length; i++)
-            {
-                if (layer[i].Start < layer[i - 1].End)
-                {
-                    throw new ArgumentException($"Events {layer[i - 1].Id} and {layer[i].Id} overlap in the same layer.", nameof(layers));
-                }
-            }
-        }
-
         EventCount = _layers.Sum(layer => layer.Length);
-        Length = _layers.Select(layer => layer.Length == 0 ? 0 : layer[^1].End).DefaultIfEmpty(0).Max();
+        Length = _layers.SelectMany(layer => layer).Select(e => e.End).DefaultIfEmpty(0).Max();
         PendingCount = Count(EventStatus.Pending);
         JeopardyCount = Count(EventStatus.Jeopardy);
         CompletedCount = Count(EventStatus.Completed);
@@ -51,55 +55,19 @@ public sealed class Schedule
 
     public int CompletedCount { get; }
 
+    /// <summary>Height of the tallest layer index, for diagnostics.</summary>
+    public int MaxTreeHeight => _trees.Select(tree => tree.Height).DefaultIfEmpty(0).Max();
+
+    /// <summary>Events of a layer ordered by start.</summary>
     public IReadOnlyList<ScheduleEvent> GetLayer(int layer) => _layers[layer];
 
-    /// <summary>Events of <paramref name="layer"/> that overlap the half-open window [from, to).</summary>
-    public IEnumerable<ScheduleEvent> Query(int layer, double from, double to)
-    {
-        if (layer < 0 || layer >= _layers.Length || to <= from)
-        {
-            yield break;
-        }
+    /// <summary>Events of <paramref name="layer"/> that overlap the half-open window [from, to), ordered by start.</summary>
+    public IEnumerable<ScheduleEvent> Query(int layer, double from, double to) =>
+        layer < 0 || layer >= _trees.Length ? [] : _trees[layer].Query(from, to);
 
-        var events = _layers[layer];
-        for (var i = FirstEndingAfter(events, from); i < events.Length && events[i].Start < to; i++)
-        {
-            yield return events[i];
-        }
-    }
-
-    /// <summary>The event of <paramref name="layer"/> at <paramref name="minute"/>, if any.</summary>
-    public ScheduleEvent? FindAt(int layer, double minute)
-    {
-        if (layer < 0 || layer >= _layers.Length)
-        {
-            return null;
-        }
-
-        var events = _layers[layer];
-        var index = FirstEndingAfter(events, minute);
-        return index < events.Length && events[index].Start <= minute ? events[index] : null;
-    }
+    /// <summary>The event of <paramref name="layer"/> at <paramref name="minute"/>, if any (the latest-starting one when events overlap).</summary>
+    public ScheduleEvent? FindAt(int layer, double minute) =>
+        Query(layer, minute, Math.BitIncrement(minute)).LastOrDefault();
 
     private int Count(EventStatus status) => _layers.Sum(layer => layer.Count(e => e.Status == status));
-
-    /// <summary>Index of the first event whose end is after <paramref name="minute"/>; ends are sorted because events do not overlap.</summary>
-    private static int FirstEndingAfter(ScheduleEvent[] events, double minute)
-    {
-        int low = 0, high = events.Length;
-        while (low < high)
-        {
-            var mid = low + (high - low) / 2;
-            if (events[mid].End <= minute)
-            {
-                low = mid + 1;
-            }
-            else
-            {
-                high = mid;
-            }
-        }
-
-        return low;
-    }
 }

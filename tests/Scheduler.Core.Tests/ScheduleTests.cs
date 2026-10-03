@@ -50,8 +50,16 @@ public class ScheduleTests
     }
 
     [Fact]
-    public void Constructor_RejectsOverlapsWithinLayer() =>
-        Assert.Throws<ArgumentException>(() => new Schedule([[E(1, 0, 0, 10), E(2, 0, 5, 10)]], Origin));
+    public void Query_KeepsEventsWithEqualStartAndOverlaps()
+    {
+        // Regression: the first version used an AVL tree keyed by start time only, which dropped duplicates.
+        var schedule = new Schedule([[E(1, 0, 0, 10), E(2, 0, 0, 30), E(3, 0, 5, 10)]], Origin);
+
+        Assert.Equal(3, schedule.EventCount);
+        Assert.Equal([1, 2, 3], schedule.Query(0, 0, 100).Select(e => e.Id));
+        Assert.Equal([2], schedule.Query(0, 20, 25).Select(e => e.Id));
+        Assert.Equal(3, schedule.FindAt(0, 7)?.Id);
+    }
 
     [Fact]
     public void Constructor_SortsEventsByStart()
